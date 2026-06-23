@@ -10,7 +10,7 @@ st.set_page_config(page_title="Dashboard Ames Housing", layout="wide")
 # Carga de datos y modelo
 @st.cache_data
 def load_data():
-    df = pd.read_csv('dataset.csv')
+    df = pd.read_csv('train.csv')
     return df
 
 @st.cache_resource
