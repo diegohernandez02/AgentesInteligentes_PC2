@@ -6,21 +6,34 @@ import joblib
 # Configuración de la página
 st.set_page_config(page_title="Dashboard Ames Housing", layout="wide")
 
-# Lista de las 10 variables (Top 10)
+# Lista de las 10 variables
 FEATURES = ['OverallQual', 'GrLivArea', 'TotalBsmtSF', 'GarageCars', '1stFlrSF', 
             'YearBuilt', 'FullBath', 'TotRmsAbvGrd', 'YearRemodAdd', 'MasVnrArea']
 
+# Carga de datos con caché eficiente
 @st.cache_data
 def load_data():
-    return pd.read_csv('train.csv')
+    try:
+        return pd.read_csv('train.csv')
+    except Exception as e:
+        st.error("Error al cargar el archivo 'train.csv'. Asegúrate de que esté en el repositorio.")
+        st.stop()
 
+# Carga del modelo con manejo de errores
 @st.cache_resource
 def load_model():
-    return joblib.load('modelo_final.pkl')
+    try:
+        return joblib.load('modelo_final.pkl')
+    except Exception as e:
+        st.error(f"Error al cargar el modelo: {e}")
+        return None
 
-# Carga de datos y modelo
+# Inicialización
 df = load_data()
 model = load_model()
+
+if model is None:
+    st.stop()
 
 st.title("🏡 Dashboard Inmobiliario - Ames Housing")
 
@@ -29,6 +42,7 @@ tab1, tab2 = st.tabs(["📊 Panel A: Análisis Exploratorio", "🔮 Panel B: An�
 with tab1:
     st.header("Análisis Exploratorio de Datos")
     
+    # Filtro de vecindarios
     neighborhoods = st.sidebar.multiselect("Vecindarios", options=df['Neighborhood'].unique(), default=df['Neighborhood'].unique())
     df_filtered = df[df['Neighborhood'].isin(neighborhoods)]
 
@@ -51,18 +65,23 @@ with tab1:
 
 with tab2:
     st.header("🔮 Panel B: Análisis Predictivo")
-    input_data = {}
-    cols = st.columns(2)
     
-    for i, col_name in enumerate(FEATURES):
-        with cols[i % 2]:
-            input_data[col_name] = st.number_input(f"{col_name}", 
-                                                  float(df[col_name].min()), 
-                                                  float(df[col_name].max()), 
-                                                  float(df[col_name].mean()))
-
-    if st.button("Calcular Predicción"):
-        # Crear DF con una fila (orient='index' o pasando lista de valores)
+    # Usamos st.form para que la predicción solo ocurra al presionar el botón
+    with st.form("prediction_form"):
+        input_data = {}
+        cols = st.columns(2)
+        
+        for i, col_name in enumerate(FEATURES):
+            with cols[i % 2]:
+                input_data[col_name] = st.number_input(
+                    f"{col_name}", 
+                    value=float(df[col_name].mean()),
+                    format="%.2f"
+                )
+        
+        submit = st.form_submit_button("Calcular Predicción")
+        
+    if submit:
         input_df = pd.DataFrame([input_data])
         prediction = model.predict(input_df)
         st.success(f"### Precio estimado: ${prediction[0]:,.2f}")
