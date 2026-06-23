@@ -2,89 +2,83 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import joblib
 
 # Configuración de la página
 st.set_page_config(page_title="Dashboard Ames Housing", layout="wide")
 
-# Título y descripción
-st.title("📊 Panel A: Análisis Exploratorio de Datos - Ames Housing")
-st.markdown("Este panel permite explorar el dataset de forma interactiva y visualizar las relaciones clave.")
-
-# Carga de datos (ajusta el nombre del archivo si es necesario)
+# Carga de datos y modelo
 @st.cache_data
 def load_data():
-    # Asegúrate de que el archivo dataset.csv esté en la misma carpeta que este script
     df = pd.read_csv('dataset.csv')
     return df
 
+@st.cache_resource
+def load_model():
+    return joblib.load('modelo_final.pkl')
+
 df = load_data()
+model = load_model()
 
-# --- SIDEBAR: Filtros ---
-st.sidebar.header("Filtros de Datos")
+# Título principal
+st.title("🏡 Dashboard Inmobiliario - Ames Housing")
 
-# Filtro por vecindario
-neighborhoods = st.sidebar.multiselect(
-    "Seleccionar Vecindarios", 
-    options=df['Neighborhood'].unique(), 
-    default=df['Neighborhood'].unique()
-)
+# Crear pestañas para los Paneles A y B
+tab1, tab2 = st.tabs(["📊 Panel A: Análisis Exploratorio", "🔮 Panel B: Análisis Predictivo"])
 
-# Filtro por área habitable
-min_area, max_area = int(df['GrLivArea'].min()), int(df['GrLivArea'].max())
-area_range = st.sidebar.slider(
-    "Rango de Área Habitable (sq ft)", 
-    min_area, max_area, 
-    (min_area, max_area)
-)
+with tab1:
+    st.header("Análisis Exploratorio de Datos")
+    
+    # --- SIDEBAR para filtros ---
+    st.sidebar.header("Filtros Panel A")
+    neighborhoods = st.sidebar.multiselect("Seleccionar Vecindarios", options=df['Neighborhood'].unique(), default=df['Neighborhood'].unique())
+    min_area, max_area = int(df['GrLivArea'].min()), int(df['GrLivArea'].max())
+    area_range = st.sidebar.slider("Rango de Área Habitable (sq ft)", min_area, max_area, (min_area, max_area))
 
-# Aplicar filtros al dataframe
-df_filtered = df[
-    (df['Neighborhood'].isin(neighborhoods)) & 
-    (df['GrLivArea'] >= area_range[0]) & 
-    (df['GrLivArea'] <= area_range[1])
-]
+    df_filtered = df[(df['Neighborhood'].isin(neighborhoods)) & 
+                     (df['GrLivArea'] >= area_range[0]) & 
+                     (df['GrLivArea'] <= area_range[1])]
 
-# --- KPIs superiores ---
-col1, col2, col3 = st.columns(3)
-col1.metric("Total de Registros", len(df_filtered))
-col2.metric("Precio Promedio", f"${df_filtered['SalePrice'].mean():,.2f}")
-col3.metric("Calidad Promedio", f"{df_filtered['OverallQual'].mean():.2f}/10")
+    # KPIs
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total de Registros", len(df_filtered))
+    col2.metric("Precio Promedio", f"${df_filtered['SalePrice'].mean():,.2f}")
+    col3.metric("Calidad Promedio", f"{df_filtered['OverallQual'].mean():.2f}/10")
 
-st.markdown("---")
+    st.markdown("---")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        fig1 = px.histogram(df_filtered, x="SalePrice", nbins=30, title="Distribución de Precios de Venta")
+        st.plotly_chart(fig1, use_container_width=True)
+    with col_b:
+        fig2 = px.scatter(df_filtered, x="GrLivArea", y="SalePrice", color="OverallQual", title="Relación Área vs Precio")
+        st.plotly_chart(fig2, use_container_width=True)
 
-# --- Visualizaciones ---
-col_a, col_b = st.columns(2)
+with tab2:
+    st.header("🔮 Panel B: Análisis Predictivo")
+    st.write("Ingrese las características de la propiedad para obtener una estimación de precio.")
+    
+    # Formulario de entrada
+    c1, c2 = st.columns(2)
+    with c1:
+        gr_liv_area = st.number_input("Área Habitable (sq ft)", 500, 5000, 1500)
+        overall_qual = st.slider("Calidad General (1-10)", 1, 10, 5)
+    with c2:
+        neighborhood = st.selectbox("Vecindario", df['Neighborhood'].unique())
+        total_bsmt_sf = st.number_input("Área de Sótano (sq ft)", 0, 3000, 800)
 
-with col_a:
-    # 1. Distribución del precio
-    fig1 = px.histogram(
-        df_filtered, 
-        x="SalePrice", 
-        nbins=30, 
-        title="Distribución de Precios de Venta", 
-        color_discrete_sequence=['#636EFA']
-    )
-    st.plotly_chart(fig1, use_container_width=True)
-
-with col_b:
-    # 2. Dispersión: GrLivArea vs Price
-    fig2 = px.scatter(
-        df_filtered, 
-        x="GrLivArea", 
-        y="SalePrice", 
-        color="OverallQual", 
-        title="Relación Área Habitable vs Precio", 
-        hover_data=['Neighborhood']
-    )
-    st.plotly_chart(fig2, use_container_width=True)
-
-# 3. Mapa de calor (Heatmap) de correlación
-st.subheader("Mapa de Calor de Correlaciones")
-numeric_df = df_filtered.select_dtypes(include=['number'])
-fig3 = px.imshow(
-    numeric_df.corr(), 
-    title="Correlación entre variables numéricas", 
-    color_continuous_scale='RdBu_r', 
-    aspect="auto"
-)
-st.plotly_chart(fig3, use_container_width=True)
+    if st.button("Calcular Predicción"):
+        input_data = pd.DataFrame({
+            'GrLivArea': [gr_liv_area],
+            'OverallQual': [overall_qual],
+            'Neighborhood': [neighborhood],
+            'TotalBsmtSF': [total_bsmt_sf]
+        })
+        
+        prediction = model.predict(input_data)
+        
+        st.success(f"### Precio estimado: ${prediction[0]:,.2f}")
+        st.info("""
+        **Contexto de la predicción:** Esta estimación se basa en los patrones de mercado aprendidos por nuestro modelo Random Forest. 
+        El precio refleja la valoración estadística esperada dada la calidad y dimensiones de la vivienda.
+        """)
