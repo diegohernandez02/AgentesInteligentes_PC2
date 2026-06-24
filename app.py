@@ -7,8 +7,8 @@ import joblib
 st.set_page_config(page_title="Dashboard Ames Housing", layout="wide")
 
 # Lista de las 10 variables
-FEATURES = ['OverallQual', 'GrLivArea', 'TotalBsmtSF', 'GarageCars', '1stFlrSF', 
-            'YearBuilt', 'FullBath', 'TotRmsAbvGrd', 'YearRemodAdd', 'MasVnrArea']
+FEATURES = ['OverallQual', 'GrLivArea', 'GarageCars', 'GarageArea', 'TotalBsmtSF', 
+            '1stFlrSF', 'FullBath', 'TotRmsAbvGrd', 'YearBuilt', 'YearRemodAdd']
 
 # Carga de datos con caché eficiente
 @st.cache_data
